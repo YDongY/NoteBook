@@ -15,7 +15,9 @@ jobs:
 
     steps: # 自动化步骤
       - uses: actions/checkout@v2 # 第一步，下载代码仓库
-
+        with:
+          submodules: recursive  # Fetch the book theme
+          fetch-depth: 0         # Fetch all history for .GitInfo and .Lastmod
     
       - name: Setup Hugo # 第二步，安装 hugo
         uses: peaceiris/actions-hugo@v2
@@ -24,7 +26,7 @@ jobs:
           extended: true
 
       - name: Build  # 第三步，编译 hugo
-        run: hugo -D --ignoreCache
+        run: hugo -D --minify --ignoreCache 
       
       - name: Deploy
         uses: AEnterprise/rsync-deploy@v1.0 # Use a third party action (https://github.com/AEnterprise/rsync-deploy)
