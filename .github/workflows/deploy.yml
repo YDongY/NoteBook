@@ -24,7 +24,7 @@ jobs:
           extended: true
 
       - name: Build  # 第三步，编译 hugo
-        run: hugo -D --minify --ignoreCache
+        run: hugo -D --ignoreCache
       
       - name: Deploy
         uses: AEnterprise/rsync-deploy@v1.0 # Use a third party action (https://github.com/AEnterprise/rsync-deploy)
@@ -35,5 +35,5 @@ jobs:
           FOLDER: "./public/*" # folder to push (./ is the root of current repo)
           SERVER_IP: ${{ secrets.DEPLOY_HOST }} # use pre-configured ssh_host value (e.g., IP or domain.com）
           USERNAME: ${{ secrets.DEPLOY_USER }} # use pre-configured ssh_username value
-          SERVER_DESTINATION: "/var/www/NoteBook" # put your repo files on this directory of the remote server
+          SERVER_DESTINATION: "/var/www/notebook" # put your repo files on this directory of the remote server
 
