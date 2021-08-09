@@ -90,4 +90,17 @@ disablePathToLower = true
   # /!\ This is an experimental feature, might be removed or changed at any time
   # (Optional, experimental, default false) Enables service worker that caches visited pages and resources for offline use.
   BookServiceWorker = true
-  enableGitalk = false
+  enableGitalk = true
+
+[params.gitalk] 
+    clientID = "04d0a4197dedf17a06cd" # Your client ID
+    clientSecret = "36a6daad967e14b5eb9644e5b61745d0b96327bb" # Your client secret
+    repo = "NoteBook" # The repo to store comments
+    owner = "YDongY" # Your GitHub ID
+    admin= "YDongY" # Required. Github repository owner and collaborators. (Users who having write access to this repository)
+    id= "location.pathname" # The unique id of the page.
+    labels= "gitalk" # Github issue labels. If you used to use Gitment, you can change it
+    perPage= 15 # Pagination size, with maximum 100.
+    pagerDirection= "last" # Comment sorting direction, available values are 'last' and 'first'.
+    createIssueManually= true # If it is 'false', it is auto to make a Github issue when the administrators login.
+    distractionFreeMode= true # Enable hot key (cmd|ctrl + enter) submit comment.
