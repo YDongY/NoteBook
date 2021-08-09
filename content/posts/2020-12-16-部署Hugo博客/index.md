@@ -161,6 +161,8 @@ $ sudo ln -s /usr/local/nginx/sbin/nginx /usr/bin/nginx
 $ vim /usr/local/nginx/nginx.conf
 ```
 
+nginx 配置如下：
+
 ```nginx
 server {
     listen                  80;
@@ -202,7 +204,7 @@ $ acme.sh --issue --dns dns_ali -d example.com -d www.example.com\
 
 修改 Nginx 配置文件如下：
 
-```conf
+```nginx
 server {
     listen  80;
     server_name     example.com www.example.com;
@@ -298,7 +300,7 @@ $ cat ~/.ssh/id_rsa.pub > ~/.ssh/authorized_keys
 
 然后修改阿里云`/etc/ssh/sshd_config`，添加如下内容：
 
-```
+```conf
 PermitRootLogin yes
 PubkeyAuthentication yes
 PasswordAuthentication yes
