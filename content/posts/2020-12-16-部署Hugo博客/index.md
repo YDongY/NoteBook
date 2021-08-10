@@ -2,11 +2,15 @@
 title = "Hugo 博客部署"
 description = ""
 tags = [
+
     "Hugo",
+
 ]
 date = "2020-12-16"
 categories = [
+
     "博客",
+
 ]
 menu = "main"
 +++
@@ -19,7 +23,7 @@ menu = "main"
 
 #### 仓库初始化
 
-首先把博客仓库 Clone 下来，并执行`Hugo`生成 HTML 文件，如果没有安装[Hugo](https://gohugo.io/getting-started/installing/#binary-cross-platform)可自行安装，具体步骤如下：
+首先把博客仓库 Clone 下来，并执行 `Hugo` 生成 HTML 文件，如果没有安装[Hugo](https://gohugo.io/getting-started/installing/#binary-cross-platform)可自行安装，具体步骤如下：
 
 ```bash
 $ mkdir -p /var/www
@@ -32,7 +36,7 @@ $ hugo
 
 #### 创建自动拉取脚本
 
-为了避免以后手动`git pull`和`hugo`生成静态资源，我们创建一个名为`deploy.sh`的 Shell 脚本，用来编译 Hugo 生成 HTML 文件
+为了避免以后手动 `git pull` 和 `hugo` 生成静态资源，我们创建一个名为 `deploy.sh` 的 Shell 脚本，用来编译 Hugo 生成 HTML 文件
 
 ```bash
 $ mkdir -p /var/www/webhook
@@ -54,54 +58,61 @@ hugo
 
 #### GitHub Webhook 配置
 
-使用 webhook 的目的就是当我们本地修改博客`push`到仓库时，可以触发我们服务器的脚本，首先去`Github`新建一个`webhook`
+使用 webhook 的目的就是当我们本地修改博客 `push` 到仓库时，可以触发我们服务器的脚本，首先去 `Github` 新建一个 `webhook`
 
 ![webhook](webhook.png "webhook")
 
-此处创建完毕之后，记住自己设置的`Secret`，接下来需要使用
+此处创建完毕之后，记住自己设置的 `Secret` ，接下来需要使用
 
 #### 创建 webhook 服务后端
 
-使用 NodeJS 创建 webhook 服务后端，后端代码保存在`webhook.js`文件中，调用`deploy.sh`来发布，因此需要与 deploy.sh 文件在同一级目录中，监听`http://127.0.0.1:6666/webhook`【**监听地址与 Nginx 有关，后面会说**】：
+使用 NodeJS 创建 webhook 服务后端，后端代码保存在 `webhook.js` 文件中，调用 `deploy.sh` 来发布，因此需要与 deploy.sh 文件在同一级目录中，监听 `http://127.0.0.1:6666/webhook` 【**监听地址与 Nginx 有关，后面会说**】：
 
-`webhook.js`文件内容如下：
+`webhook.js` 文件内容如下：
 
 ```js
 var http = require('http');
 var spawn = require('child_process').spawn;
 var createHandler = require('github-webhook-handler');
-var handler = createHandler({ path: '/webhook', secret: 'yourwebhooksecret' }); // 将 secret 修改你自己的
+var handler = createHandler({
+    path: '/webhook',
+    secret: 'yourwebhooksecret'
+}); // 将 secret 修改你自己的
 
-http.createServer(function (req, res) {
-  handler(req, res, function (err) {
-    res.statusCode = 404;
-    res.end('no such location');
-  })
+http.createServer(function(req, res) {
+    handler(req, res, function(err) {
+        res.statusCode = 404;
+        res.end('no such location');
+    })
 }).listen(6666); // 监听端口，可以自己修改
 
-handler.on('error', function (err) {
-  console.error('Error:', err.message)
+handler.on('error', function(err) {
+    console.error('Error:', err.message)
 });
 
-handler.on('push', function (event) {
-  console.log('Received a push event for %s to %s',
-    event.payload.repository.name,
-    event.payload.ref);
+handler.on('push', function(event) {
+    console.log('Received a push event for %s to %s',
+        event.payload.repository.name,
+        event.payload.ref);
 
-  runCommand('bash', ['/var/www/webhook/deploy.sh'], function( txt ){ // 注意路径，最好写绝对路径
-    console.log(txt);
-  });
+    runCommand('bash', ['/var/www/webhook/deploy.sh'], function(txt) { // 注意路径，最好写绝对路径
+        console.log(txt);
+    });
 });
 
-function runCommand( cmd, args, callback ){
-    var child = spawn( cmd, args );
+function runCommand(cmd, args, callback) {
+    var child = spawn(cmd, args);
     var resp = 'Deploy OK';
-    child.stdout.on('data', function( buffer ){ resp += buffer.toString(); });
-    child.stdout.on('end', function(){ callback( resp ) });
+    child.stdout.on('data', function(buffer) {
+        resp += buffer.toString();
+    });
+    child.stdout.on('end', function() {
+        callback(resp)
+    });
 }
 ```
 
-有了`webhook.js`还不行，它还需要安装一个依赖包：
+有了 `webhook.js` 还不行，它还需要安装一个依赖包：
 
 ```bash
 $ cd /var/www/webhook
@@ -110,7 +121,7 @@ $ npm i -S github-webhook-handler
 
 #### PM2 管理 webhook 服务后端
 
-目前为止`webhook.js`和`deploy.sh`就可以利用`webhook.js`监听【**实际是 Nginx 转发给`webhook.js`**】 Github 的 webhook，从而触发`deploy.sh`脚本完成更新博客操作。但是由于`webhook.js`需要时刻监听，故需要把它当做守护进程，这里推荐一个管理后台进程的工具 [pm2](https://getpm2.com/)，如果有其他方式也可以。接下来通过`npm`进行安装
+目前为止 `webhook.js` 和 `deploy.sh` 就可以利用 `webhook.js` 监听【**实际是 Nginx 转发给 `webhook.js` **】 Github 的 webhook，从而触发 `deploy.sh` 脚本完成更新博客操作。但是由于 `webhook.js` 需要时刻监听，故需要把它当做守护进程，这里推荐一个管理后台进程的工具 [pm2](https://getpm2.com/)，如果有其他方式也可以。接下来通过 `npm` 进行安装
 
 ```bash
 $ npm i -g pm2
@@ -135,7 +146,7 @@ $ pm2 list
 
 ### 1.2 安装 Nginx
 
-准备工作完成，下面开始配置 Nginx，使用 Nginx 来部署静态资源，同时转发 Github 发送的 webhook 请求给`webhook.js`。如果还没有安装 Nginx 可以[点击查看安装](2020-12-16-ubuntu安装nginx/#2-nginx-编译安装官网httpsnginxorgendownloadhtml)先进行安装【**推荐编译安装**】，唯一需要注意的地方就是在编译过程替换成如下命令：
+准备工作完成，下面开始配置 Nginx，使用 Nginx 来部署静态资源，同时转发 Github 发送的 webhook 请求给 `webhook.js` 。如果还没有安装 Nginx 可以[点击查看安装](2020-12-16-ubuntu安装nginx/#2-nginx-编译安装官网httpsnginxorgendownloadhtml)先进行安装【**推荐编译安装**】，唯一需要注意的地方就是在编译过程替换成如下命令：
 
 ```bash
 $ cd /opt/nginx-1.18.0
@@ -180,7 +191,7 @@ server {
 }
 ```
 
-> 目前为止，Nginx 自动部署 Hugo 博客已经完成，如果需要使用`https`访问你的站点，可继续往下看。
+> 目前为止，Nginx 自动部署 Hugo 博客已经完成，如果需要使用 `https` 访问你的站点，可继续往下看。
 
 ### 1.3 申请 SSL 证书
 
@@ -198,9 +209,9 @@ $ acme.sh --issue --dns dns_ali -d example.com -d www.example.com\
 --reloadcmd "nginx -s reload"
 ```
 
-- `example.com`：替换成自己的域名
-- `--key-file`：后面的参数表示把`~/.acme.sh/example.com/example.com.key`拷贝到指定目录文件，【这里的目录可以自己指定，最终会在 Nginx 中配置】
-- `--fullchain-file`：同上，只是把`~/.acme.sh/example.com/fullchain.cer`拷贝到指定目录文件
+* `example.com`：替换成自己的域名
+* `--key-file`：后面的参数表示把`~/.acme.sh/example.com/example.com.key`拷贝到指定目录文件，【这里的目录可以自己指定，最终会在 Nginx 中配置】
+* `--fullchain-file`：同上，只是把`~/.acme.sh/example.com/fullchain.cer`拷贝到指定目录文件
 
 修改 Nginx 配置文件如下：
 
@@ -237,7 +248,7 @@ server {
 
 ![Actions](actions.png "actions")
 
-然后选择一个合适的 ssh 工具，不一定需要 star 多的，最好适合自己的使用场景，保证简单、传输速度高效即可。接着就是配置`yml`文件：
+然后选择一个合适的 ssh 工具，不一定需要 star 多的，最好适合自己的使用场景，保证简单、传输速度高效即可。接着就是配置 `yml` 文件：
 
 ```yml
 name: Deploy Blog To Aliyun
@@ -292,13 +303,13 @@ jobs:
 $ ssh-keygen -t rsa -C "邮箱地址"
 ```
 
-然后把`~/.ssh/id_rsa.pub`的内容复制到`~/.ssh/authorized_keys`文件中
+然后把 `~/.ssh/id_rsa.pub` 的内容复制到 `~/.ssh/authorized_keys` 文件中
 
 ```bash
 $ cat ~/.ssh/id_rsa.pub > ~/.ssh/authorized_keys
 ```
 
-然后修改阿里云`/etc/ssh/sshd_config`，添加如下内容：
+然后修改阿里云 `/etc/ssh/sshd_config` ，添加如下内容：
 
 ```conf
 PermitRootLogin yes
@@ -314,11 +325,11 @@ $ service sshd restart
 
 ### 2.3 配置 Github Secrets
 
-配置完成公私钥之后，接下来及时配置 Github Secrets，因为我们在`yml`文件中进行了引用，总不能直接把私钥地址明文丢在配置文件里吧🤣。进行配置可在项目目录下点击`settings->secrets`。
+配置完成公私钥之后，接下来及时配置 Github Secrets，因为我们在 `yml` 文件中进行了引用，总不能直接把私钥地址明文丢在配置文件里吧🤣。进行配置可在项目目录下点击 `settings->secrets` 。
 
 ![secrets](secrets.png "secrets")
 
-注意命名要与`yml`配置文件一致：
+注意命名要与 `yml` 配置文件一致：
 
 ```yml
 DEPLOY_KEY: ${{ secrets.DEPLOY_KEY }} # 阿里云的私钥 (~/.ssh/id_rsa)
@@ -334,9 +345,9 @@ SERVER_DESTINATION: "/var/www/notes/Blog" # 希望上传到阿里云的目标地
 
 ## 3. 参考
 
-- [nginx 配置 https](https://juejin.cn/post/6844904063688179720#heading-4)
-- [使用 GitHub Webhook 实现静态网站自动化部署](https://jimmysong.io/blog/github-webhook-website-auto-deploy/#github-webhook-%E9%85%8D%E7%BD%AE)
-- [acme.sh 中文 wiki](https://github.com/acmesh-official/acme.sh/wiki/%E8%AF%B4%E6%98%8E)
-- [使用 acme.sh 部署 Let's Encrypt 通过阿里云 DNS 验证方式实现泛域名 HTTPS](https://f-e-d.club/topic/use-acme-sh-deployment-let-s-encrypt-by-ali-cloud-dns-generic-domain-https-authentication.article)
-- [Github Actions 官方文档](https://docs.github.com/cn/free-pro-team@latest/actions)
-- [GitHub Actions 入门教程](http://www.ruanyifeng.com/blog/2019/09/getting-started-with-github-actions.html)
+* [nginx 配置 https](https://juejin.cn/post/6844904063688179720#heading-4)
+* [使用 GitHub Webhook 实现静态网站自动化部署](https://jimmysong.io/blog/github-webhook-website-auto-deploy/#github-webhook-%E9%85%8D%E7%BD%AE)
+* [acme.sh 中文 wiki](https://github.com/acmesh-official/acme.sh/wiki/%E8%AF%B4%E6%98%8E)
+* [使用 acme.sh 部署 Let's Encrypt 通过阿里云 DNS 验证方式实现泛域名 HTTPS](https://f-e-d.club/topic/use-acme-sh-deployment-let-s-encrypt-by-ali-cloud-dns-generic-domain-https-authentication.article)
+* [Github Actions 官方文档](https://docs.github.com/cn/free-pro-team@latest/actions)
+* [GitHub Actions 入门教程](http://www.ruanyifeng.com/blog/2019/09/getting-started-with-github-actions.html)
