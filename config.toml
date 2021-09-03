@@ -10,6 +10,9 @@ enableGitInfo = true
 # Book configuration
 disablePathToLower = true
 
+pygmentsCodefences = true
+pygmentsStyle = "pygments"
+
 # Needed for mermaid/katex shortcodes
 [markup]
   [markup.highlight]
@@ -18,8 +21,9 @@ disablePathToLower = true
     lineNoStart = 1
     lineNos = true
     lineNumbersInTable = true
+    noClasses = true
     tabWidth = 4
-    style = 'dracula'
+    style = 'rrt'
   [markup.goldmark.renderer]
     unsafe = true
 
