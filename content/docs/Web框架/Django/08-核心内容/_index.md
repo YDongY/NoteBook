@@ -1045,7 +1045,7 @@ class ContentType(models.Model):
 >>> user_type = ContentType.objects.get(app_label='auth', model='user')
 >>> user_type
 <ContentType: user>
->>> user_type.model_class() # 返回房钱 ContentType 实例所代表的模型类
+>>> user_type.model_class() # 返回当前 ContentType 实例所代表的模型类
 <class 'django.contrib.auth.models.User'>
 >>> user_type.get_object_for_this_type(username='Guido') # 根据当前 ContentType 实例获取模型对象
 <User: Guido>
@@ -1053,24 +1053,103 @@ class ContentType(models.Model):
 
 ## Generic relations
 
-在 ContentType 中添加一个模型外键，可以实现模型与模型之间的绑定，例如下面的标签系统：
+在 ContentType 中添加一个模型外键，可以实现模型与模型之间的任意绑定，例如下面的 Comment 评论模型既可以给 Post （博客）评论也可以给 Article（文章评论）：
 
 ```python
-from django.contrib.contenttypes.fields import GenericForeignKey
+from django.contrib.auth.models import User
+from django.contrib.contenttypes.fields import GenericForeignKey, GenericRelation
 from django.contrib.contenttypes.models import ContentType
 from django.db import models
 
-class TaggedItem(models.Model):
-    tag = models.SlugField()
+class Comment(models.Model):
+    author = models.ForeignKey(User, on_delete=models.CASCADE)
+    body = models.TextField(blank=True)
     content_type = models.ForeignKey(ContentType, on_delete=models.CASCADE)
-    object_id = models.PositiveIntegerField()
-    content_object = GenericForeignKey('content_type', 'object_id')
+    object_id = models.PositiveIntegerField()  # 这里需要设定为关联模型的主键类型
+    content_object = GenericForeignKey('content_type', 'object_id')  # 等价于 GenericForeignKey() 不能设置 on_delete 默认级联删除
 
-    def __str__(self):
-        return self.tag
+    # content_type : 唯一确定某个应用下的某个模型类
+    # object_id : 唯一确定某个模型类的某一条记录
+
+    class Meta:
+        # 查询优化，因为 content_type, object_id 是一起使用的，用于唯一确定某个应用下的某个模型类中的某一条记录
+        index_together = ('content_type', 'object_id')
+
+class Post(models.Model):
+    author = models.ForeignKey(User, on_delete=models.CASCADE)
+    title = models.CharField(max_length=20)
+    content = models.TextField(blank=True)
+    comments = GenericRelation(Comment)
+
+class Article(models.Model):
+    author = models.ForeignKey(User, on_delete=models.CASCADE)
+    title = models.CharField(max_length=20)
+    content = models.TextField(blank=True)
+    comments = GenericRelation(Comment, related_query_name='article')
+    # comments = GenericRelation(Comment, related_query_name='article',
+    #                            content_type_field='content_type_fk',
+    #                            object_id_field='object_primary_key')
+    # 后面两个字段用于关联查询
 ```
 
+{{< tabs "通用关系" >}}
+{{< tab "添加删除" >}}
+
+```python
+from .models import Comment, Post, Article
+from django.contrib.auth.models import User
+
+# 1. 创建对象添加
+user = User.objects.get(id=1)
+post = Post.objects.create(author=user, title='西游记', content='三打白骨精')
+comment1 = Comment.objects.create(author=user, body='三打白骨精这一集孙悟空被师父冤枉了', content_object=post)
+
+# 2. add
+comment2 = Comment(author=user, body='孙悟空心态炸了')
+post.comments.add(comment2, bulk=False)
+
+# 3. create
+post.comments.create(author=user, body='孙悟空太难了')
+
+# 4. set
+post.comments.set([comment1, comment2]) # 删除其他关联的 comment，仅存在 comment1,comment2
+
+# 5. remove
+post.comments.remove(comment1) # 将批量删除指定的模型对象
+
+# 6. clear
+post.comments.clear() # 批量删除一个实例的所有相关对象
+```
+
+{{< /tab >}}
+{{< tab "关联查询" >}}
+
+```python
+article1 = Article.objects.create(author=user,title='Django',content='大而全的 Python Web 框架')
+comment1 = Comment.objects.create(author=user, body='很好啊',content_object=article1)
+article2 = Article.objects.create(author=user,title='Flask',content='小而美的 Python Web 框架')
+comment2 = Comment.objects.create(author=user, body='很好啊',content_object=article1)
+
+# 根据 Comment 的 related_query_name 查询 article__title__contains='Django' 
+comment = Comment.objects.filter(article__title__contains='Django')
+
+# 也可以手动进行相同类型的查询
+article = Article.objects.filter(title__contains='Django')
+article_type = ContentType.objects.get_for_model(Article)
+Comment.objects.filter(content_type__pk=article_type.id, object_id__in=article)
+
+# 如果定义了 comments = GenericRelation(Comment, related_query_name='article',
+#                               content_type_field='content_type_fk',
+#                               object_id_field='object_primary_key')
+Comment.objects.filter(content_type_fk__pk=article_type.id, object_primary_key__in=article)
+```
+
+{{< /tab >}}
+{{< /tabs >}}
+
 # 11. 信号
+
+> https://docs.djangoproject.com/zh-hans/3.2/topics/signals/
 
 ```python
 django.db.models.signals.pre_save       # 一个模型的 save() 方法被调用之前
@@ -1080,6 +1159,100 @@ django.db.models.signals.post_delete    # 一个模型的 delete() 方法或查�
 django.db.models.signals.m2m_changed    # 一个模型的 ManyToManyField 更改后发出
 django.core.signals.request_started     # Django 发起一个 HTTP 请求后
 django.core.signals.request_finished    # Django 结束一个 HTTP 请求后
+```
+
+* **测试模型**
+
+```python
+from django.db import models
+
+class Post(models.Model):
+    title = models.CharField(max_length=20)
+
+    def __str__(self):
+        return self.title
+```
+
+{{< tabs "信号" >}}
+{{< tab "pre_save/post_save" >}}
+
+```python
+def pre_save_post(sender, instance, **kwargs):
+    print(sender)
+    print(instance)
+    print("pre save do something")
+
+def post_save_post(sender, instance, **kwargs):
+    print(sender)   # 发送者，例如：<class 'app_signal.models.Post'>
+    print(instance) # 模型实例，例如：Post 对象
+    print("post save do something")
+
+pre_save.connect(pre_save_post, sender=Post)
+post_save.connect(post_save_post, sender=Post)  # sender 用于指定监听 Post 模型的 save
+
+# >>> Post.objects.create(title='first title') 
+# >>> p = Post()
+# >>> p.title = 'second title'
+# >>> p.save()
+# 先执行 pre_save_post 再执行 create/save 最后执行 post_save_post，create 本质还是调用 save
+```
+
+{{< /tab >}}
+{{< tab "pre_delete/post_delete" >}}
+
+```python
+from django.db.models.signals import pre_delete, post_delete
+from django.dispatch import receiver
+
+@receiver(pre_delete, sender=Post)
+def pre_delete_post(sender, instance, **kwargs):
+    print("pre delete do something")
+
+@receiver(post_delete, sender=Post)
+def post_delete_post(sender, instance, **kwargs):
+    print(sender)
+    print(instance)
+    print("post delete do something")
+
+# >>> p = Post.objects.first()
+# >>> p.delete()  
+# >>> Post.objects.first().delete()
+# 先执行 pre_delete_post 再执行 delete 最后执行 post_delete_post
+```
+
+{{< /tab >}}
+{{< tab "request_started/request_finished" >}}
+
+```python
+from django.core.signals import request_finished, request_started
+from django.dispatch import receiver
+
+@receiver(request_started)
+def request_started_signal(sender, **kwargs):
+    print(sender)  # <class 'django.core.handlers.wsgi.WSGIHandler'>
+    print("Request started!")
+
+@receiver(request_finished)
+def request_finished_signal(sender, **kwargs):
+    print(sender)
+    print("Request finished!")
+```
+
+{{< /tab >}}
+{{< /tabs >}}
+
+* **信号存放位置**
+
+为了避免代码的耦合性，通常在应用目录下创建一个 `signals.py` 的子模块，该模块统一存放与当前应用相关的所有信号。由于信号接收器在应用目录下的 `apo.py` 中的配置类下的 `ready()` 方法中连接，所以只需要在该方法中导入 `signals.py` 即可。
+
+```python
+from django.apps import AppConfig
+
+class AppSignalConfig(AppConfig):
+    ......
+
+    def ready(self):
+        from . import signal
 ```
 
 # 12. 文件上传
